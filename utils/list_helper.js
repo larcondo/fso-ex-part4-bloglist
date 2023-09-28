@@ -14,7 +14,24 @@ const totalLikes = (blogs) => {
   )
 }
 
+const favoriteBlog = (blogs) => {
+  let {_id, url, __v, ...favorite} = blogs[0]
+
+  blogs.map( b => {
+    if (b.likes > favorite.likes) {
+      favorite = {
+        title: b.title,
+        author: b.author,
+        likes: b.likes
+      }
+    }
+  })
+
+  return favorite
+}
+
 module.exports = {
   dummy,
-  totalLikes
+  totalLikes,
+  favoriteBlog
 }
