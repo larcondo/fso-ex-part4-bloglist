@@ -1,12 +1,11 @@
 {
-  "name": "exercise-4.1",
+  "name": "bloglist",
   "version": "1.0.0",
-  "description": "Exercise 4.1 - fullstackopen Course",
-  "main": "app.js",
+  "description": "Exercises Part 4 - fullstackopen Course",
+  "main": "index.js",
   "scripts": {
-    "start": "node app.js",
-    "dev": "nodemon app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "author": "larcondo",
   "license": "ISC",
