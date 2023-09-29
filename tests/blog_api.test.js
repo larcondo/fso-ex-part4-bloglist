@@ -115,6 +115,32 @@ test('all blogs has a unique identifier named id', async () => {
   })
 })
 
+test('a blog can be added', async () => {
+  const newBlog = {
+    title: 'Extended logistical initiative',
+    author: 'Ruperta Matzke',
+    url: 'http://smugmug.com',
+    likes: 11
+  }
+
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(201)
+    .expect('Content-Type', /application\/json/)
+  
+  const response = await api.get('/api/blogs')
+  const blogs = response.body.map( b => {
+    const {id, ...rest} = b
+    return rest
+  })
+  expect(response.body).toHaveLength(initialBlogs.length + 1)
+  expect(blogs).toContainEqual(newBlog)
+  response.body.forEach( entry => {
+    expect(entry.id).toBeDefined()
+  })
+})
+
 afterAll(async () => {
   await mongoose.connection.close()
 })
