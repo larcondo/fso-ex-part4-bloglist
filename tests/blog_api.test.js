@@ -162,6 +162,52 @@ test('verify default value for likes property', async () => {
   expect(blog.likes).toBe(0)
 })
 
+describe('missing properties', () => {
+  test('add blog with missing title must fail', async () => {
+    const newBlog = {
+      author: 'Alessandra Di Dello',
+      url: 'https://privacy.gov.au',
+      likes: 4
+    }
+
+    const response = await api
+      .post('/api/blogs')
+      .send(newBlog)
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+
+    expect(response.body.error).toBeDefined()
+    expect(response.body).toEqual({
+      error: 'title is required'
+    })
+
+    const blogsInDb = await api.get('/api/blogs')
+    expect(blogsInDb.body).toHaveLength(initialBlogs.length)
+  })
+
+  test('add blog with missing url must fail', async () => {
+    const newBlog = {
+      title: 'Re-contextualized global encryption',
+      author: 'Rabi Chown',
+      likes: 10
+    }
+
+    const response = await api
+      .post('/api/blogs')
+      .send(newBlog)
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+
+    expect(response.body.error).toBeDefined()
+    expect(response.body).toEqual({
+      error: 'url is required'
+    })
+
+    const blogsInDb = await api.get('/api/blogs')
+    expect(blogsInDb.body).toHaveLength(initialBlogs.length)
+  })
+})
+
 afterAll(async () => {
   await mongoose.connection.close()
 })
