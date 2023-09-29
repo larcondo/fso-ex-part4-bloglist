@@ -1,3 +1,5 @@
+const _ = require('lodash')
+
 const dummy = (blogs) => {
   // always return 1 if argument is a blog array
   return Array.isArray(blogs) ? 1 : null
@@ -30,8 +32,23 @@ const favoriteBlog = (blogs) => {
   return favorite
 }
 
+const mostBlogs = (blogs) => {
+  
+  function formato (value, key) {
+    return {author: key, blogs: value}
+  }
+
+  return _.chain(blogs)
+    .countBy('author')
+    .map(formato)
+    .orderBy('blogs', 'desc')
+    .head()
+    .value()
+}
+
 module.exports = {
   dummy,
   totalLikes,
-  favoriteBlog
+  favoriteBlog,
+  mostBlogs
 }
