@@ -141,6 +141,27 @@ test('a blog can be added', async () => {
   })
 })
 
+test('verify default value for likes property', async () => {
+  const newBlog = {
+    title: 'Fundamental dedicated capability',
+    author: 'Friedrick Pina',
+    url: 'https://princeton.edu',
+  }
+
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(201)
+    .expect('Content-Type', /application\/json/)
+  
+  const response = await api.get('/api/blogs')
+  const blog = response.body.filter(b => b.title === newBlog.title)[0]
+  
+  expect(blog.id).toBeDefined()
+  expect(blog.likes).toBeDefined()
+  expect(blog.likes).toBe(0)
+})
+
 afterAll(async () => {
   await mongoose.connection.close()
 })
