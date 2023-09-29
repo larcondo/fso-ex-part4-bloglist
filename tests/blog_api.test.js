@@ -69,9 +69,8 @@ const initialBlogs = [
 
 beforeEach( async () => {
   await Blog.deleteMany({})
-  let blogObject = {}
   for (const blog of initialBlogs) {
-    blogObject = new Blog(blog)
+    let blogObject = new Blog(blog)
     await blogObject.save()
   }
 })
@@ -155,7 +154,7 @@ test('verify default value for likes property', async () => {
     .expect('Content-Type', /application\/json/)
   
   const response = await api.get('/api/blogs')
-  const blog = response.body.filter(b => b.title === newBlog.title)[0]
+  const blog = response.body.find(b => b.title === newBlog.title)
   
   expect(blog.id).toBeDefined()
   expect(blog.likes).toBeDefined()
@@ -223,6 +222,31 @@ describe('delete blogs', () => {
     
     const titles = blogsAfterDelete.body.map( b => b.title)
     expect(titles).not.toContain(blogToDelete.title)
+  })
+})
+
+describe('update blogs', () => {
+  test('update a specific blog', async () => {
+    const blogs = await api.get('/api/blogs')
+    const blogToUpdate = blogs.body[5]
+
+    await api
+      .put(`/api/blogs/${blogToUpdate.id}`)
+      .send({ 
+        likes: blogToUpdate.likes + 5,
+        author: 'John Doe',
+        title: 'Testing updating operations'
+      })
+      .expect(200)
+      .expect('Content-Type', /application\/json/)
+
+    const blogsAfterUpdate = await api.get('/api/blogs')
+    expect(blogsAfterUpdate.body).toHaveLength(initialBlogs.length)
+    const updatedBlog = blogsAfterUpdate.body.find(b => b.id === blogToUpdate.id)
+    
+    expect(updatedBlog.likes).toBe(blogToUpdate.likes + 5)
+    expect(updatedBlog.title).toBe('Testing updating operations')
+    expect(updatedBlog.author).toBe('John Doe')
   })
 })
 
