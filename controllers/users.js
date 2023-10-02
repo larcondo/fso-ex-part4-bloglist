@@ -9,7 +9,7 @@ const errorMessages = {
 }
 
 usersRouter.get('/', async (request, response) => {
-  const users = await User.find({}, {password: 0})
+  const users = await User.find({}, {password: 0}).populate('blogs', {likes: 0, user: 0})
 
   response.status(200).json(users)
 })
@@ -36,6 +36,13 @@ usersRouter.post('/', async (request, response) => {
   const savedUser = await user.save()
 
   response.status(201).json(savedUser)
+})
+
+usersRouter.delete('/:id', async (request, response) => {
+  const { id } = request.params
+
+  await User.findByIdAndDelete(id)
+  response.status(204).end()
 })
 
 module.exports = usersRouter
