@@ -50,6 +50,15 @@ blogRouter.put('/:id', async (request, response) => {
 blogRouter.delete('/:id', async (request, response) => {
   const { id } = request.params
 
+  const decodedToken = jwt.verify(request.token, process.env.SECRET)
+  const blogObject = await Blog.findById(id)
+  // only user that create the blog has permission to delete it
+  const userHasPermission = blogObject.user.toString() === decodedToken.id
+
+  if (!userHasPermission) return response.status(403).json({
+    error: 'user does not have permission to delete the blog'
+  })
+  
   // delete blog id from user blogs array
   await User.updateMany({}, { 
     $pull: { 
