@@ -2,7 +2,10 @@ const mongoose = require('mongoose')
 const supertest = require('supertest')
 const app = require('../app')
 const Blog = require('../models/blog')
+const User = require('../models/user')
 const api = supertest(app)
+const bcrypt = require('bcrypt')
+const { PASSWORD_MINLENGTH } = require('../utils/config')
 
 const initialBlogs = [
   {
@@ -247,6 +250,137 @@ describe('update blogs', () => {
     expect(updatedBlog.likes).toBe(blogToUpdate.likes + 5)
     expect(updatedBlog.title).toBe('Testing updating operations')
     expect(updatedBlog.author).toBe('John Doe')
+  })
+})
+
+describe('when there is initially one user in db', () => {
+  beforeEach( async () => {
+    await User.deleteMany({})
+    const passwordHash = await bcrypt.hash('sekret', 10)
+    const user = new User({ username: 'root', password: passwordHash })
+    await user.save()
+  })
+
+  test('creation of a new user succeeds', async () => {
+    const usersBefore = await User.find({})
+
+    const newUser = {
+      username: 'tshaw',
+      name: 'Taylor Shaw',
+      password: 'BlinDspoT'
+    }
+
+    await api
+      .post('/api/users')
+      .send(newUser)
+      .expect(201)
+      .expect('Content-Type', /application\/json/)
+
+    const usersAfter = await User.find({})
+    expect(usersAfter).toHaveLength(usersBefore.length + 1)
+
+    const usernames = usersAfter.map( u => u.username)
+    expect(usernames).toContain(newUser.username)
+  })
+
+  test('username must be unique', async () => {
+    const usersBefore = await User.find({})
+    const newUser = {
+      username: 'root',
+      password: 'othersekret',
+      name: 'admin'
+    }
+
+    await api
+      .post('/api/users')
+      .send(newUser)
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+
+    const usersAfter = await User.find({})
+    expect(usersAfter).toHaveLength(usersBefore.length)
+  })
+
+  test('short password', async () => {
+    const usersBefore = await User.find({})
+    const newUser = {
+      username: 'mytestuser',
+      password: 'se',
+      name: 'admin'
+    }
+
+    const response = await api
+      .post('/api/users')
+      .send(newUser)
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+
+    expect(response.body.error).toBeDefined()
+    expect(response.body.error).toBe(
+      'User validation failed: password: Path `password` is shorter than the minimum allowed length ('
+      + PASSWORD_MINLENGTH + 
+      ').'
+    )
+    const usersAfter = await User.find({})
+    expect(usersAfter).toHaveLength(usersBefore.length)
+  })
+
+  test('short username', async () => {
+    const usersBefore = await User.find({})
+    const newUser = {
+      username: 'my',
+      password: 'sekret',
+      name: 'admin'
+    }
+
+    const response = await api
+      .post('/api/users')
+      .send(newUser)
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+
+    expect(response.body.error).toBeDefined()
+    expect(response.body.error).toContain('User validation failed: username')
+    const usersAfter = await User.find({})
+    expect(usersAfter).toHaveLength(usersBefore.length)
+  })
+
+  test('missing password', async () => {
+    const usersBefore = await User.find({})
+    const newUser = {
+      username: 'myseconduser',
+      name: 'admin'
+    }
+
+    const response = await api
+      .post('/api/users')
+      .send(newUser)
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+    
+    expect(response.body.error).toBeDefined()
+    expect(response.body.error).toBe('User validation failed: password: Path `password` is required.')
+    const usersAfter = await User.find({})
+    expect(usersAfter).toHaveLength(usersBefore.length)
+  })
+
+  test('missing username', async () => {
+    const usersBefore = await User.find({})
+    const newUser = {
+      password: 'sekret1',
+      name: 'admin'
+    }
+
+    const response = await api
+      .post('/api/users')
+      .send(newUser)
+      .expect(400)
+      .expect('Content-Type', /application\/json/)
+    
+    expect(response.body.error).toBeDefined()
+    expect(response.body.error).toContain('User validation failed: username')
+    const usersAfter = await User.find({})
+    expect(usersAfter).toHaveLength(usersBefore.length)
   })
 })
 
