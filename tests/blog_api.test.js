@@ -76,6 +76,13 @@ beforeEach( async () => {
     let blogObject = new Blog(blog)
     await blogObject.save()
   }
+
+  await User.deleteMany({})
+  const passwordHash = await bcrypt.hash('sekret', 10)
+  const user = new User({ username: 'root', password: passwordHash })
+  await user.save()
+  const user2 = new User({ username: 'stranger', password: await bcrypt.hash('secretword', 10)})
+  await user2.save()
 })
 
 test('blogs are returned as json', async () => {
@@ -118,6 +125,16 @@ test('all blogs has a unique identifier named id', async () => {
 })
 
 test('a blog can be added', async () => {
+  const user = { username: 'root', password: 'sekret' }
+
+  const userResponse = await api
+    .post('/api/login')
+    .send(user)
+    .expect(200)
+    .expect('Content-Type', /application\/json/)
+
+  expect(userResponse.body.token).toBeDefined()
+
   const newBlog = {
     title: 'Extended logistical initiative',
     author: 'Ruperta Matzke',
@@ -127,13 +144,17 @@ test('a blog can be added', async () => {
 
   await api
     .post('/api/blogs')
+    .set('Authorization', `Bearer ${userResponse.body.token}`)
     .send(newBlog)
     .expect(201)
     .expect('Content-Type', /application\/json/)
   
-  const response = await api.get('/api/blogs')
+  const response = await api
+    .get('/api/blogs')
+    .expect(200)
+
   const blogs = response.body.map( b => {
-    const {id, ...rest} = b
+    const {id, user, ...rest} = b
     return rest
   })
   expect(response.body).toHaveLength(initialBlogs.length + 1)
@@ -144,6 +165,16 @@ test('a blog can be added', async () => {
 })
 
 test('verify default value for likes property', async () => {
+  const user = { username: 'root', password: 'sekret' }
+
+  const userResponse = await api
+    .post('/api/login')
+    .send(user)
+    .expect(200)
+    .expect('Content-Type', /application\/json/)
+
+  expect(userResponse.body.token).toBeDefined()
+
   const newBlog = {
     title: 'Fundamental dedicated capability',
     author: 'Friedrick Pina',
@@ -152,6 +183,7 @@ test('verify default value for likes property', async () => {
 
   await api
     .post('/api/blogs')
+    .set('Authorization', `Bearer ${userResponse.body.token}`)
     .send(newBlog)
     .expect(201)
     .expect('Content-Type', /application\/json/)
@@ -165,6 +197,16 @@ test('verify default value for likes property', async () => {
 })
 
 describe('missing properties', () => {
+  let token = ''
+
+  beforeEach( async () => {
+    const { body } = await api
+      .post('/api/login')
+      .send({ username: 'root', password: 'sekret' })
+    
+    token = body.token
+  })
+
   test('add blog with missing title must fail', async () => {
     const newBlog = {
       author: 'Alessandra Di Dello',
@@ -174,6 +216,7 @@ describe('missing properties', () => {
 
     const response = await api
       .post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
       .send(newBlog)
       .expect(400)
       .expect('Content-Type', /application\/json/)
@@ -196,6 +239,7 @@ describe('missing properties', () => {
 
     const response = await api
       .post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
       .send(newBlog)
       .expect(400)
       .expect('Content-Type', /application\/json/)
@@ -211,20 +255,65 @@ describe('missing properties', () => {
 })
 
 describe('delete blogs', () => {
-  test('delete a specific blog', async () => {
-    const blogs = await api.get('/api/blogs')
+  let token = ''
+  let token2 = ''
+  let blogId = ''
 
-    const blogToDelete = blogs.body[2]
+  const blog = {
+    "title": "Devolved actuating circuit",
+    "author": "Miranda Jamrowicz",
+    "url": "http://angelfire.com",
+    "likes": 117
+  }
+
+  beforeEach( async () => {
+    const { body } = await api
+      .post('/api/login')
+      .send({ username: 'root', password: 'sekret' })
+    
+    token = body.token
+    
+    const response = await api
+      .post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
+      .send(blog)
+
+    blogId =  response.body.id
+
+    const { body: body2 } = await api
+      .post('/api/login')
+      .send({ username: 'stranger', password: 'secretword' })
+
+    token2 = body2.token
+  })
+
+
+  test('delete a specific blog', async () => {
+    const blogsBeforeDelete = await api.get('/api/blogs')
 
     await api
-      .delete(`/api/blogs/${blogToDelete.id}`)
+      .delete(`/api/blogs/${blogId}`)
+      .set('Authorization', `Bearer ${token}`)
       .expect(204)
     
     const blogsAfterDelete = await api.get('/api/blogs')
-    expect(blogsAfterDelete.body).toHaveLength(initialBlogs.length - 1)
+    expect(blogsAfterDelete.body).toHaveLength(blogsBeforeDelete.body.length - 1)
     
     const titles = blogsAfterDelete.body.map( b => b.title)
-    expect(titles).not.toContain(blogToDelete.title)
+    expect(titles).not.toContain(blog.title)
+  })
+
+  test(`user deletes another user's blog must fail`, async () => {
+    const blogsBeforeDelete = await api.get('/api/blogs')
+
+    const { body } = await api
+      .delete(`/api/blogs/${blogId}`)
+      .set('Authorization', `Bearer ${token2}`)
+      .expect(403)
+    
+    expect(body.error).toBe('user does not have permission to delete the blog')
+    const blogsAfterDelete = await api.get('/api/blogs')
+    expect(blogsAfterDelete.body).toHaveLength(blogsBeforeDelete.body.length)
   })
 })
 
@@ -254,13 +343,7 @@ describe('update blogs', () => {
 })
 
 describe('when there is initially one user in db', () => {
-  beforeEach( async () => {
-    await User.deleteMany({})
-    const passwordHash = await bcrypt.hash('sekret', 10)
-    const user = new User({ username: 'root', password: passwordHash })
-    await user.save()
-  })
-
+  
   test('creation of a new user succeeds', async () => {
     const usersBefore = await User.find({})
 
@@ -381,6 +464,81 @@ describe('when there is initially one user in db', () => {
     expect(response.body.error).toContain('User validation failed: username')
     const usersAfter = await User.find({})
     expect(usersAfter).toHaveLength(usersBefore.length)
+  })
+})
+
+describe('token is not provided', () => {
+  const newBlog = {
+    "title": "Open-architected client-driven definition",
+    "author": "Leonore Horley",
+    "url": "http://opensource.org",
+    "likes": 115
+  }
+
+  test('adding a blog', async () => {
+    const { body: blogsBefore } = await api.get('/api/blogs')
+
+    const response = await api
+      .post('/api/blogs')
+      .set('Authorization', `Bearer 1jh3431jsdas14jb52`)
+      .send(newBlog)
+      .expect(401)
+    
+    expect(response.body.error).toBeDefined()
+    expect(response.body.error).toBe('token must be provided')
+
+    const { body: blogsAfter } = await api.get('/api/blogs')
+    expect(blogsAfter).toHaveLength(blogsBefore.length)
+    expect(blogsAfter).toEqual(blogsBefore)
+  })
+  
+  test('adding a blog without authorization header', async () => {
+    const { body: blogsBefore } = await api.get('/api/blogs')
+
+    const response = await api
+      .post('/api/blogs')
+      .send(newBlog)
+      .expect(401)
+    
+    expect(response.body.error).toBeDefined()
+    expect(response.body.error).toBe('unauthenticated')
+
+    const { body: blogsAfter } = await api.get('/api/blogs')
+    expect(blogsAfter).toHaveLength(blogsBefore.length)
+    expect(blogsAfter).toEqual(blogsBefore)
+  })
+
+  test('adding a blog with wrong authorization header', async () => {
+    const { body: blogsBefore } = await api.get('/api/blogs')
+
+    const response = await api
+      .post('/api/blogs')
+      .set('Authorization', `1jh3431jsdas14jb52`)
+      .send(newBlog)
+      .expect(401)
+    
+    expect(response.body.error).toBeDefined()
+    expect(response.body.error).toBe('token required')
+
+    const { body: blogsAfter } = await api.get('/api/blogs')
+    expect(blogsAfter).toHaveLength(blogsBefore.length)
+    expect(blogsAfter).toEqual(blogsBefore)
+  })
+
+  test('deleting a blog', async () => {
+    const { body: blogsBefore } = await api.get('/api/blogs')
+
+    const response = await api
+      .delete('/api/blogs/651c645c98e5ed848598fff4')
+      .set('Authorization', `Bearer 1jh3431jsdas14jb52`)
+      .expect(401)
+
+    expect(response.body.error).toBeDefined()
+    expect(response.body.error).toBe('token must be provided')
+
+    const { body: blogsAfter } = await api.get('/api/blogs')
+    expect(blogsAfter).toHaveLength(blogsBefore.length)
+    expect(blogsAfter).toEqual(blogsBefore)
   })
 })
 
