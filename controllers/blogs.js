@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken')
+const middleware = require('../utils/middleware')
 const blogRouter = require('express').Router()
 const Blog = require('../models/blog')
 const User = require('../models/user')
@@ -8,19 +8,12 @@ blogRouter.get('/', async (request, response) => {
   response.json(blogs)
 })
 
-blogRouter.post('/', async (request, response) => {
-
-  const decodedToken = jwt.verify(request.token, process.env.SECRET)
-  if (!decodedToken.id) {
-    return response.status(401).json({
-      error: 'token invalid'
-    })
-  }
+blogRouter.post('/', middleware.userExtractor, async (request, response) => {
 
   if (!request.body.title) return response.status(400).json({ error: 'title is required'})
   if (!request.body.url) return response.status(400).json({ error: 'url is required'})
   
-  const user = await User.findById(decodedToken.id)
+  const user = request.user
 
   const blog = new Blog({
     title: request.body.title,
@@ -47,13 +40,14 @@ blogRouter.put('/:id', async (request, response) => {
   response.status(200).json(updatedBlog)
 })
 
-blogRouter.delete('/:id', async (request, response) => {
+blogRouter.delete('/:id', middleware.userExtractor, async (request, response) => {
   const { id } = request.params
 
-  const decodedToken = jwt.verify(request.token, process.env.SECRET)
+  const user = request.user
   const blogObject = await Blog.findById(id)
+  
   // only user that create the blog has permission to delete it
-  const userHasPermission = blogObject.user.toString() === decodedToken.id
+  const userHasPermission = blogObject.user.toString() === user.id
 
   if (!userHasPermission) return response.status(403).json({
     error: 'user does not have permission to delete the blog'
